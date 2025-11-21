@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarDays, Check } from 'lucide-react'
+import { CalendarDays, Check, Pencil, Trash2, Save, X } from 'lucide-react'
 
 const API = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
 
@@ -10,6 +10,9 @@ export default function Assignments() {
 
   const [form, setForm] = useState({ participant_id: '', room_id: '', days: {1:false,2:false,3:false} })
   const [error, setError] = useState('')
+
+  const [editingId, setEditingId] = useState(null)
+  const [editForm, setEditForm] = useState({ participant_id: '', room_id: '', days: {1:false,2:false,3:false} })
 
   const loadAll = async () => {
     const [r, p, a] = await Promise.all([
@@ -41,6 +44,32 @@ export default function Assignments() {
       setForm({ participant_id: '', room_id: '', days: {1:false,2:false,3:false} })
       loadAll()
     }
+  }
+
+  const startEdit = (a) => {
+    setEditingId(a.id)
+    setEditForm({ participant_id: a.participant_id, room_id: a.room_id, days: {1:a.stay_days.includes(1),2:a.stay_days.includes(2),3:a.stay_days.includes(3)} })
+  }
+
+  const cancelEdit = () => setEditingId(null)
+
+  const saveEdit = async (id) => {
+    const stay_days = Object.entries(editForm.days).filter(([k,v])=>v).map(([k])=>Number(k))
+    const payload = { participant_id: editForm.participant_id, room_id: editForm.room_id, stay_days }
+    const res = await fetch(`${API}/assignments/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+    if (!res.ok) {
+      const msg = await res.json().catch(()=>({detail:'Erreur'}))
+      setError(msg.detail || 'Erreur lors de la mise à jour')
+    } else {
+      setEditingId(null)
+      loadAll()
+    }
+  }
+
+  const removeAssignment = async (id) => {
+    if (!confirm('Supprimer cette attribution ?')) return
+    const res = await fetch(`${API}/assignments/${id}`, { method:'DELETE' })
+    if (res.ok) loadAll()
   }
 
   const occupancy = useMemo(() => {
@@ -112,13 +141,43 @@ export default function Assignments() {
           const r = rooms.find(x=>x.id===a.room_id)
           return (
             <div key={a.id} className="bg-slate-900/40 border border-slate-700 rounded p-3 text-blue-100">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{p?.full_name || '—'}</p>
-                  <p className="text-xs text-blue-300">{r?.name || '—'}</p>
+              {editingId === a.id ? (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <select className="bg-slate-900/60 border border-slate-700 rounded px-3 py-2 text-white" value={editForm.participant_id} onChange={e=>setEditForm({...editForm,participant_id:e.target.value})}>
+                      {participants.map(p=> <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                    </select>
+                    <select className="bg-slate-900/60 border border-slate-700 rounded px-3 py-2 text-white" value={editForm.room_id} onChange={e=>setEditForm({...editForm,room_id:e.target.value})}>
+                      {rooms.map(r=> <option key={r.id} value={r.id}>{r.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {[1,2,3].map(d=> (
+                      <label key={d} className={`flex items-center gap-2 px-3 py-2 rounded border ${editForm.days[d] ? 'bg-blue-600/30 border-blue-400' : 'bg-slate-900/60 border-slate-700'} text-white cursor-pointer`}>
+                        <input type="checkbox" className="hidden" checked={editForm.days[d]} onChange={e=>setEditForm({...editForm, days:{...editForm.days,[d]:e.target.checked}})} />
+                        <span>Jour {d}</span>
+                        {editForm.days[d] && <Check className="w-4 h-4 text-blue-300" />}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2 justify-end">
+                    <button onClick={()=>saveEdit(a.id)} className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded flex items-center gap-2"><Save className="w-4 h-4"/> Enregistrer</button>
+                    <button onClick={cancelEdit} className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded flex items-center gap-2"><X className="w-4 h-4"/> Annuler</button>
+                  </div>
                 </div>
-                <div className="text-xs">Jours: {a.stay_days.join(', ')}</div>
-              </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">{p?.full_name || '—'}</p>
+                    <p className="text-xs text-blue-300">{r?.name || '—'}</p>
+                    <p className="text-xs">Jours: {a.stay_days.join(', ')}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={()=>startEdit(a)} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded flex items-center gap-2"><Pencil className="w-4 h-4"/> Modifier</button>
+                    <button onClick={()=>removeAssignment(a.id)} className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded flex items-center gap-2"><Trash2 className="w-4 h-4"/> Supprimer</button>
+                  </div>
+                </div>
+              )}
             </div>
           )
         })}

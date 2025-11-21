@@ -2,6 +2,7 @@ import Header from './components/Header'
 import Rooms from './components/Rooms'
 import Participants from './components/Participants'
 import Assignments from './components/Assignments'
+import Stats from './components/Stats'
 
 function App() {
   return (
@@ -11,6 +12,7 @@ function App() {
       <div className="relative min-h-screen p-6 max-w-6xl mx-auto">
         <Header />
         <div className="grid gap-6">
+          <Stats />
           <Rooms />
           <Participants />
           <Assignments />
